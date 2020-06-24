@@ -1,6 +1,4 @@
 /*
- * Copyright 2018, Decawave Limited, All Rights Reserved
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,7 +19,7 @@
 
 /**
  * @file dw1000_dev.c
- * @author paul kettle
+ * @author UWB Core <uwbcore@gmail.com>
  * @date 2018
  * @brief Device file
  *

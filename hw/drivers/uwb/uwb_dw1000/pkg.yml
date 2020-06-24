@@ -18,8 +18,8 @@
 #
 
 pkg.name: hw/drivers/uwb/uwb_dw1000
-pkg.description: Driver for DW1000 Transeiver
-pkg.author: "Paul Kettle <paul.kettle@decawave.com>"
+pkg.description: Driver for DW1000 Transceiver
+pkg.author: "UWB Core <uwbcore@gmail.com>"
 pkg.homepage: "http:/www.decawave.com/"
 pkg.keywords:
     - dw1000

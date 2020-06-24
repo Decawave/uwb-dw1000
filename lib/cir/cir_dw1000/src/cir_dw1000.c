@@ -1,6 +1,4 @@
 /**
- * Copyright 2018, Decawave Limited, All Rights Reserved
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,7 +19,7 @@
 
 /**
  * @file cir.c
- * @author Paul.Kettle@decawave.com
+ * @author UWB Core <uwbcore@gmail.com>
  * @date Nov 29 2019
  * @brief Channel Impulse Response
  *

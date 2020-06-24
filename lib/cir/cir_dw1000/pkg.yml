@@ -19,7 +19,7 @@
 
 pkg.name: lib/cir/cir_dw1000
 pkg.description: Channel Impulse Response
-pkg.author: "Paul Kettle <Paul.Kettle@decawave.com>"
+pkg.author: "UWB Core <uwbcore@gmail.com>"
 pkg.homepage: "http://www.decawave.com/"
 pkg.keywords:
     - dw1000
