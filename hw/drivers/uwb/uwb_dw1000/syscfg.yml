@@ -1,0 +1,76 @@
+
+syscfg.defs:
+    UWB_DW1000_API_CHECKS:
+        value: 1
+        description: >
+          Used to check that the UWB_DEV has been setup correctly
+          at compile time.
+        restrictions:
+          - '(UWB_DEV_RXDIAG_MAXLEN > 19)'
+    DW1000_HAL_SPI_BUFFER_SIZE:
+        description: >
+          Size of spi read/write buffer, sets the
+          maximum allowed nonblocking read operation
+        value: 256
+    DW1000_HAL_SPI_MAX_CNT:
+        description: >
+          The maximum number of bytes in a single transfer that the
+          SPI hardware supports. 255 is safe for nrf52.
+        value: 255
+    DW1000_DEVICE_SPI_RD_MAX_NOBLOCK:
+        description: >
+          Max size spi read in bytes that is always done with blocking io.
+          Reads longer than this value will be done with non-blocking io.
+        value: 9
+    DW1000_BIAS_CORRECTION_ENABLED:
+        description: 'Enable range bias correction polynomial'
+        value: 0
+    DW1000_DEVICE_TX_PWR:
+        description: 'Tx Power dBm'
+        value: ((float)-14.3f)
+    DW1000_DEVICE_ANT_GAIN:
+        description: 'Antenna Gain dB'
+        value: ((float)1.0f)
+    DW1000_RXTX_LEDS:
+        description: 'Enable showing rx and tx activity on leds'
+        value: 1
+    DW1000_RXTX_GPIO:
+        description: 'Enable showing rx and tx activity on gpios'
+        value: 0
+    DW1000_RNG_INDICATE_LED:
+        description: 'Toggle LED_1 for every range packet received'
+        value: 0
+    DW1000_CLI:
+        description: 'Debug CLI interface'
+        value: 0
+    DW1000_MAC_STATS:
+        description: 'Enable stats for the dw1000 mac'
+        value: 1
+    DW1000_SYS_STATUS_BACKTRACE_LEN:
+        description: 'Length of interrupt backtrace, set to 0 to disable'
+        value: 0
+        restrictions:
+          - DW1000_CLI
+    DW1000_SYS_STATUS_BACKTRACE_HI:
+        description: 'Also include the high sys_status register in interrupt backtrace'
+        value: 0
+    DW1000_SPI_BACKTRACE_LEN:
+        description: >
+          Length of spi backtrace, set to 0 to disable.
+          NOTE - may need a higher value on OS_LATENCY
+        value: 0
+    DW1000_SPI_BACKTRACE_DATA_LEN:
+        description: 'Length of data section kept for spi backtrace'
+        value: 8
+    DW1000_CLI_EVENT_COUNTERS:
+        description: 'Expose event counter cli api'
+        value: 0
+        restrictions:
+          - DW1000_CLI
+
+syscfg.vals.UWB_CLI:
+    DW1000_CLI: 1
+
+syscfg.vals.UWB_CLI_BACKTRACE:
+    DW1000_SYS_STATUS_BACKTRACE_LEN: 128
+    DW1000_SPI_BACKTRACE_LEN: 256
