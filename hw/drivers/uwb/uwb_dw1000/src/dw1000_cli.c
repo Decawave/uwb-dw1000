@@ -59,7 +59,7 @@ void dw1000_debugfs_init(void);
 void dw1000_debugfs_deinit(void);
 #endif
 
-static int dw1000_cli_cmd(int argc, char **argv);
+static int dw1000_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct streamer *streamer);
 
 #if MYNEWT_VAL(SHELL_CMD_HELP)
 const struct shell_param cmd_dw1000_param[] = {
@@ -90,16 +90,11 @@ const struct shell_cmd_help cmd_dw1000_help = {
 };
 #endif
 
-static struct shell_cmd shell_dw1000_cmd = {
-    .sc_cmd = "dw1000",
-    .sc_cmd_func = dw1000_cli_cmd,
-#if MYNEWT_VAL(SHELL_CMD_HELP)
-    .help = &cmd_dw1000_help
-#endif
-};
+static struct shell_cmd shell_dw1000_cmd =
+    SHELL_CMD_EXT("dw1000", dw1000_cli_cmd, &cmd_dw1000_help);
 
 void
-dw1000_cli_dump_registers(struct _dw1000_dev_instance_t * inst, cli_out_cb_t cb)
+dw1000_cli_dump_registers(struct _dw1000_dev_instance_t * inst, struct streamer *streamer)
 {
     uint64_t reg = 0;
     int i, l;
@@ -126,7 +121,7 @@ dw1000_cli_dump_registers(struct _dw1000_dev_instance_t * inst, cli_out_cb_t cb)
         case (TX_ANTD_ID):
         case (RX_FWTO_ID):
             reg = dw1000_read_reg(inst, i, 0, 4);
-            cb("{\"reg[%02X]\"=\"0x%08llX\"}\n",i,reg&0xffffffff);
+            streamer_printf(streamer, "{\"reg[%02X]\"=\"0x%08llX\"}\n",i,reg&0xffffffff);
             break;
         case (SYS_TIME_ID):
         case (TX_FCTRL_ID):
@@ -138,28 +133,28 @@ dw1000_cli_dump_registers(struct _dw1000_dev_instance_t * inst, cli_out_cb_t cb)
         case (SYS_MASK_ID):
         case (SYS_STATE_ID):
             reg = dw1000_read_reg(inst, i, 0, 5);
-            cb("{\"reg[%02X]\"=\"0x%010llX\"}\n",i,reg&0xffffffffffll);
+            streamer_printf(streamer, "{\"reg[%02X]\"=\"0x%010llX\"}\n",i,reg&0xffffffffffll);
             break;
         default:
             l=8;
             reg = dw1000_read_reg(inst, i, 0, l);
-            cb("{\"reg[%02X]\"=\"0x%016llX\"}\n",i,
+            streamer_printf(streamer, "{\"reg[%02X]\"=\"0x%016llX\"}\n",i,
                            reg&0xffffffffffffffffll);
         }
     }
-    cb("{\"inst->irq_sem\"=%d}\n", dpl_sem_get_count(&inst->uwb_dev.irq_sem));
-    cb("{\"inst->tx_sem\"=%d}\n", dpl_sem_get_count(&inst->tx_sem));
+    streamer_printf(streamer, "{\"inst->irq_sem\"=%d}\n", dpl_sem_get_count(&inst->uwb_dev.irq_sem));
+    streamer_printf(streamer, "{\"inst->tx_sem\"=%d}\n", dpl_sem_get_count(&inst->tx_sem));
 #if MYNEWT_VAL(UWB_RNG_ENABLED)
     struct uwb_rng_instance *rng = (struct uwb_rng_instance*)uwb_mac_find_cb_inst_ptr(&inst->uwb_dev, UWBEXT_RNG);
     if (rng)
-        cb("{\"rng->sem\"=%d}\n", dpl_sem_get_count(&rng->sem));
+        streamer_printf(streamer, "{\"rng->sem\"=%d}\n", dpl_sem_get_count(&rng->sem));
 #endif
 
 #if defined(MYNEWT)
 #if MYNEWT_VAL(UWB_CCP_ENABLED)
     struct uwb_ccp_instance *ccp = (struct uwb_ccp_instance*)uwb_mac_find_cb_inst_ptr(&inst->uwb_dev, UWBEXT_CCP);
     if (ccp)
-        cb("{\"ccp->sem\"=%d}\n", dpl_sem_get_count(&ccp->sem));
+        streamer_printf(streamer, "{\"ccp->sem\"=%d}\n", dpl_sem_get_count(&ccp->sem));
 #endif
 #endif
 }
@@ -182,26 +177,26 @@ dw1000_dump_address(struct _dw1000_dev_instance_t * inst, uint32_t addr, uint16_
 
 #if MYNEWT_VAL(DW1000_CLI_EVENT_COUNTERS)
 void
-dw1000_cli_dump_event_counters(struct _dw1000_dev_instance_t * inst, cli_out_cb_t cb)
+dw1000_cli_dump_event_counters(struct _dw1000_dev_instance_t * inst, struct streamer *streamer)
 {
     struct uwb_dev_evcnt cnt;
 
     dw1000_phy_event_cnt_read(inst, &cnt);
 
-    cb("Event counters:\n");
-    cb("  RXPHE:  %6d  # rx PHR err\n", cnt.ev0s.count_rxphe);
-    cb("  RXFSL:  %6d  # rx frame sync loss\n", cnt.ev0s.count_rxfsl);
-    cb("  RXFCG:  %6d  # rx CRC OK\n", cnt.ev1s.count_rxfcg);
-    cb("  RXFCE:  %6d  # rx CRC Errors\n", cnt.ev1s.count_rxfce);
-    cb("  ARFE:   %6d  # addr filt err\n", cnt.ev2s.count_arfe);
-    cb("  RXOVRR: %6d  # rx overflow\n", cnt.ev2s.count_rxovrr);
-    cb("  RXSTO:  %6d  # rx SFD TO\n", cnt.ev3s.count_rxsto);
-    cb("  RXPTO:  %6d  # pream search TO\n", cnt.ev3s.count_rxpto);
-    cb("  FWTO:   %6d  # rx frame wait TO\n", cnt.ev4s.count_fwto);
-    cb("  TXFRS:  %6d  # tx frames sent\n", cnt.ev4s.count_txfrs);
-    cb("  HPWARN: %6d  # half period warn\n", cnt.ev5s.count_hpwarn);
-    cb("  TPW:    %6d  # tx pwr-up warn\n", cnt.ev5s_1000.count_tpwarn);
-    cb("  RXPREJ: %6d  # rx prem rejects\n", cnt.ev6s.count_rxprej);
+    streamer_printf(streamer, "Event counters:\n");
+    streamer_printf(streamer, "  RXPHE:  %6d  # rx PHR err\n", cnt.ev0s.count_rxphe);
+    streamer_printf(streamer, "  RXFSL:  %6d  # rx frame sync loss\n", cnt.ev0s.count_rxfsl);
+    streamer_printf(streamer, "  RXFCG:  %6d  # rx CRC OK\n", cnt.ev1s.count_rxfcg);
+    streamer_printf(streamer, "  RXFCE:  %6d  # rx CRC Errors\n", cnt.ev1s.count_rxfce);
+    streamer_printf(streamer, "  ARFE:   %6d  # addr filt err\n", cnt.ev2s.count_arfe);
+    streamer_printf(streamer, "  RXOVRR: %6d  # rx overflow\n", cnt.ev2s.count_rxovrr);
+    streamer_printf(streamer, "  RXSTO:  %6d  # rx SFD TO\n", cnt.ev3s.count_rxsto);
+    streamer_printf(streamer, "  RXPTO:  %6d  # pream search TO\n", cnt.ev3s.count_rxpto);
+    streamer_printf(streamer, "  FWTO:   %6d  # rx frame wait TO\n", cnt.ev4s.count_fwto);
+    streamer_printf(streamer, "  TXFRS:  %6d  # tx frames sent\n", cnt.ev4s.count_txfrs);
+    streamer_printf(streamer, "  HPWARN: %6d  # half period warn\n", cnt.ev5s.count_hpwarn);
+    streamer_printf(streamer, "  TPW:    %6d  # tx pwr-up warn\n", cnt.ev5s_1000.count_tpwarn);
+    streamer_printf(streamer, "  RXPREJ: %6d  # rx prem rejects\n", cnt.ev6s.count_rxprej);
 }
 #endif
 
@@ -288,88 +283,88 @@ fctrl_to_string(uint16_t s)
 }
 
 static void
-fctrl_ledgend(cli_out_cb_t cb)
+fctrl_ledgend(struct streamer *streamer)
 {
-    cb("   D=Data, A=Ack, M=Mac\n");
-    cb("   Secr: Security enabled, fPnd: Frame pending, ACKr: Ack requested, PANc: PANID Compress\n");
-    cb("   Dst: No=no dest addres, Rs=Reserved, 16-bit address, 64-bit address\n");
-    cb("   Frame version: I-IEEE 802.15.4, I2003-IEEE 802.15.4-2003, iFv-Invalid Frame Version\n");
-    cb("   Src: No=no src addres, Rs=Reserved, 16-bit address, 64-bit address\n");
+    streamer_printf(streamer, "   D=Data, A=Ack, M=Mac\n");
+    streamer_printf(streamer, "   Secr: Security enabled, fPnd: Frame pending, ACKr: Ack requested, PANc: PANID Compress\n");
+    streamer_printf(streamer, "   Dst: No=no dest addres, Rs=Reserved, 16-bit address, 64-bit address\n");
+    streamer_printf(streamer, "   Frame version: I-IEEE 802.15.4, I2003-IEEE 802.15.4-2003, iFv-Invalid Frame Version\n");
+    streamer_printf(streamer, "   Src: No=no src addres, Rs=Reserved, 16-bit address, 64-bit address\n");
 }
 
 static int
 print_interrupt_bt_line(uint32_t *start_t, uint16_t verbose,
                         struct dw1000_sys_status_backtrace *p,
                         struct dw1000_sys_status_backtrace *p_last,
-                        cli_out_cb_t cb)
+                        struct streamer *streamer)
 {
     if (!p->utime) return 0;
     if (!*start_t) *start_t = p->utime;
 
     int32_t diff = (p_last)? p->utime-p_last->utime : 0;
     if (diff < 0) diff = 0;
-    cb(" %10lu ", dpl_cputime_ticks_to_usecs(p->utime));
-    cb(" %10lu ", dpl_cputime_ticks_to_usecs(p->utime-*start_t));
-    cb(" %8lu ", dpl_cputime_ticks_to_usecs(diff));
-    cb(" %6lu ", dpl_cputime_ticks_to_usecs(p->utime_end-p->utime));
-    cb(" %2s ", p->interrupt_reentry ? "r":" ");
+    streamer_printf(streamer, " %10lu ", dpl_cputime_ticks_to_usecs(p->utime));
+    streamer_printf(streamer, " %10lu ", dpl_cputime_ticks_to_usecs(p->utime-*start_t));
+    streamer_printf(streamer, " %8lu ", dpl_cputime_ticks_to_usecs(diff));
+    streamer_printf(streamer, " %6lu ", dpl_cputime_ticks_to_usecs(p->utime_end-p->utime));
+    streamer_printf(streamer, " %2s ", p->interrupt_reentry ? "r":" ");
     if (p->fctrl) {
         if (verbose&0x1) {
             char *s = fctrl_to_string(p->fctrl);
-            cb(" %02X %02X (%s)%*s", p->fctrl&0xff, p->fctrl>>8, s, 32-strlen(s), " ");
+            streamer_printf(streamer, " %02X %02X (%s)%*s", p->fctrl&0xff, p->fctrl>>8, s, 32-strlen(s), " ");
         } else {
-            cb(" %02X %02X ", p->fctrl&0xff, p->fctrl>>8);
+            streamer_printf(streamer, " %02X %02X ", p->fctrl&0xff, p->fctrl>>8);
         }
     } else {
-        cb("       ");
+        streamer_printf(streamer, "       ");
         if (verbose&0x1) {
-            cb(" %32s ", "");
+            streamer_printf(streamer, " %32s ", "");
         }
     }
-    cb(" %0*llX ", 2*DW1000_SYS_STATUS_ASSEMBLE_LEN, DW1000_SYS_STATUS_ASSEMBLE(p));
-    cb(" %s", sys_status_to_string(DW1000_SYS_STATUS_ASSEMBLE(p)));
+    streamer_printf(streamer, " %0*llX ", 2*DW1000_SYS_STATUS_ASSEMBLE_LEN, DW1000_SYS_STATUS_ASSEMBLE(p));
+    streamer_printf(streamer, " %s", sys_status_to_string(DW1000_SYS_STATUS_ASSEMBLE(p)));
     return 1;
 }
 
 void
-dw1000_cli_interrupt_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, cli_out_cb_t cb)
+dw1000_cli_interrupt_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, struct streamer *streamer)
 {
     int i;
     uint32_t start_t = 0;
     struct dw1000_sys_status_backtrace *p, *p_last=0;
 
-    cb(" %10s ", "abs");
-    cb(" %10s ", "usec");
-    cb(" %8s ", "diff");
-    cb(" %6s ", "dur");
-    cb(" %2s", "ir");
-    cb(" %5s", "fctrl");
+    streamer_printf(streamer, " %10s ", "abs");
+    streamer_printf(streamer, " %10s ", "usec");
+    streamer_printf(streamer, " %8s ", "diff");
+    streamer_printf(streamer, " %6s ", "dur");
+    streamer_printf(streamer, " %2s", "ir");
+    streamer_printf(streamer, " %5s", "fctrl");
     if (verbose&0x1) {
-        cb("(fctrl2txt)%21s ", "");
+        streamer_printf(streamer, "(fctrl2txt)%21s ", "");
     }
-    cb(" %*s ", 2*DW1000_SYS_STATUS_ASSEMBLE_LEN, "status");
-    cb("   status2txt\n");
-    for (i=0;i<80;i++) cb("-");
+    streamer_printf(streamer, " %*s ", 2*DW1000_SYS_STATUS_ASSEMBLE_LEN, "status");
+    streamer_printf(streamer, "   status2txt\n");
+    for (i=0;i<80;i++) streamer_printf(streamer, "-");
     if (verbose&0x1) {
-        for (i=0;i<34;i++) cb("-");
+        for (i=0;i<34;i++) streamer_printf(streamer, "-");
     }
-    cb("\n");
+    streamer_printf(streamer, "\n");
 
 
     inst->sys_status_bt_lock = 1;
     for (i=0;i<MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN);i++) {
         uint16_t i_mod = (inst->sys_status_bt_idx + i + 1) % MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN);
         p = &inst->sys_status_bt[i_mod];
-        if (print_interrupt_bt_line(&start_t, verbose, p, p_last, cb)) {
-            cb("\n");
+        if (print_interrupt_bt_line(&start_t, verbose, p, p_last, streamer)) {
+            streamer_printf(streamer, "\n");
         }
         p_last = p;
     }
     inst->sys_status_bt_lock = 0;
 
     if (verbose&0x1) {
-        cb("----\n fctrl2txt: \n");
-        fctrl_ledgend(cb);
+        streamer_printf(streamer, "----\n fctrl2txt: \n");
+        fctrl_ledgend(streamer);
     }
 }
 #endif
@@ -401,7 +396,7 @@ static int
 print_spi_bt_line(uint32_t *start_t, uint16_t verbose,
                   struct dw1000_spi_backtrace *p,
                   struct dw1000_spi_backtrace *p_last,
-                  cli_out_cb_t cb)
+                  struct streamer *streamer)
 {
     int j;
     if (!p->utime) return 0;
@@ -409,63 +404,63 @@ print_spi_bt_line(uint32_t *start_t, uint16_t verbose,
 
     int32_t diff = (p_last)? p->utime-p_last->utime : 0;
     if (diff < 0) diff = 0;
-    cb(" %10lu ", dpl_cputime_ticks_to_usecs(p->utime));
-    cb(" %10lu ", dpl_cputime_ticks_to_usecs(p->utime-*start_t));
-    cb(" %8lu ", dpl_cputime_ticks_to_usecs(diff));
-    cb(" %6lu ", dpl_cputime_ticks_to_usecs(p->utime_end-p->utime));
-    cb(" %3s%s  ", (p->non_blocking)?"NB-":"", (p->is_write)?"W":"R");
+    streamer_printf(streamer, " %10lu ", dpl_cputime_ticks_to_usecs(p->utime));
+    streamer_printf(streamer, " %10lu ", dpl_cputime_ticks_to_usecs(p->utime-*start_t));
+    streamer_printf(streamer, " %8lu ", dpl_cputime_ticks_to_usecs(diff));
+    streamer_printf(streamer, " %6lu ", dpl_cputime_ticks_to_usecs(p->utime_end-p->utime));
+    streamer_printf(streamer, " %3s%s  ", (p->non_blocking)?"NB-":"", (p->is_write)?"W":"R");
 
-    cb(" ");
+    streamer_printf(streamer, " ");
     for (j=0;j<4;j++) {
         if (j<p->cmd_len) {
-            cb("%02X", p->cmd[j]);
+            streamer_printf(streamer, "%02X", p->cmd[j]);
         } else {
-            cb("  ");
+            streamer_printf(streamer, "  ");
         }
     }
 
     if (verbose&0x1) {
         char *s = cmd_to_string(p->cmd, p->cmd_len);
-        cb(" (%s)%*s", s, 17-strlen(s), " ");
+        streamer_printf(streamer, " (%s)%*s", s, 17-strlen(s), " ");
     }
-    cb(" %4d ", p->data_len);
+    streamer_printf(streamer, " %4d ", p->data_len);
     for (j=0;j<p->data_len&&j<sizeof(p->data);j++) {
-        cb("%02X", p->data[j]);
+        streamer_printf(streamer, "%02X", p->data[j]);
     }
     return 1;
 }
 
 void
 dw1000_cli_spi_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose,
-                         cli_out_cb_t cb)
+                         struct streamer *streamer)
 {
     int i;
     uint32_t start_t = 0;
     struct dw1000_spi_backtrace *p, *p_last=0;
 
-    cb(" %10s ", "abs");
-    cb(" %10s ", "usec");
-    cb(" %8s ", "diff");
-    cb(" %6s ", "dur");
-    cb(" %5s", "flags");
-    cb(" %s      ", "cmd");
+    streamer_printf(streamer, " %10s ", "abs");
+    streamer_printf(streamer, " %10s ", "usec");
+    streamer_printf(streamer, " %8s ", "diff");
+    streamer_printf(streamer, " %6s ", "dur");
+    streamer_printf(streamer, " %5s", "flags");
+    streamer_printf(streamer, " %s      ", "cmd");
     if (verbose&0x1) {
-        cb("(cmd2txt)%21s ", "");
+        streamer_printf(streamer, "(cmd2txt)%21s ", "");
     }
-    cb(" %4s ", "dlen");
-    cb(" %s\n", "data");
-    for (i=0;i<80;i++) cb("-");
+    streamer_printf(streamer, " %4s ", "dlen");
+    streamer_printf(streamer, " %s\n", "data");
+    for (i=0;i<80;i++) streamer_printf(streamer, "-");
     if (verbose&0x1) {
-        for (i=0;i<34;i++) cb("-");
+        for (i=0;i<34;i++) streamer_printf(streamer, "-");
     }
-    cb("\n");
+    streamer_printf(streamer, "\n");
 
     inst->spi_bt_lock = 1;
     for (i=0;i<MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN);i++) {
         uint16_t i_mod = (inst->spi_bt_idx + i + 1) % MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN);
         p = &inst->spi_bt[i_mod];
-        if (print_spi_bt_line(&start_t, verbose, p, p_last, cb)) {
-            cb("\n");
+        if (print_spi_bt_line(&start_t, verbose, p, p_last, streamer)) {
+            streamer_printf(streamer, "\n");
         }
         p_last = p;
     }
@@ -476,7 +471,7 @@ dw1000_cli_spi_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose,
 #if MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN) && MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN)
 
 void
-dw1000_cli_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, cli_out_cb_t cb)
+dw1000_cli_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, struct streamer *streamer)
 {
     int i;
     uint16_t spi_i=0, irq_i=0;
@@ -484,17 +479,17 @@ dw1000_cli_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, cli
     struct dw1000_spi_backtrace *spi_p, *spi_p_last=0;
     struct dw1000_sys_status_backtrace *irq_p, *irq_p_last=0;
 
-    cb(" %10s ", "abs");
-    cb(" %10s ", "usec");
-    cb(" %8s ", "diff");
-    cb(" %6s ", "dur");
-    cb(" %5s", "flags");
-    cb(" cmd/status data\n");
-    for (i=0;i<80;i++) cb("-");
+    streamer_printf(streamer, " %10s ", "abs");
+    streamer_printf(streamer, " %10s ", "usec");
+    streamer_printf(streamer, " %8s ", "diff");
+    streamer_printf(streamer, " %6s ", "dur");
+    streamer_printf(streamer, " %5s", "flags");
+    streamer_printf(streamer, " cmd/status data\n");
+    for (i=0;i<80;i++) streamer_printf(streamer, "-");
     if (verbose&0x1) {
-        for (i=0;i<34;i++) cb("-");
+        for (i=0;i<34;i++) streamer_printf(streamer, "-");
     }
-    cb("\n");
+    streamer_printf(streamer, "\n");
 
 
     inst->spi_bt_lock = 1;
@@ -506,17 +501,17 @@ dw1000_cli_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, cli
         irq_p = &inst->sys_status_bt[irq_i_mod];
         if ((spi_p->utime < irq_p->utime && spi_i < MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN)) ||
             irq_i >= MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN)) {
-            if (print_spi_bt_line(&start_t, verbose, spi_p, spi_p_last, cb)) {
-                cb("\n");
+            if (print_spi_bt_line(&start_t, verbose, spi_p, spi_p_last, streamer)) {
+                streamer_printf(streamer, "\n");
             }
             spi_p_last = spi_p;
             spi_i++;
         } else {
-            cb("\e[93m");   /* Set to bright yellow */
-            if (print_interrupt_bt_line(&start_t, verbose, irq_p, irq_p_last, cb)) {
-                cb("\e[39m\n");   /* Set to default colour */
+            streamer_printf(streamer, "\e[93m");   /* Set to bright yellow */
+            if (print_interrupt_bt_line(&start_t, verbose, irq_p, irq_p_last, streamer)) {
+                streamer_printf(streamer, "\e[39m\n");   /* Set to default colour */
             } else {
-                cb("\e[39m");     /* Set to default colour */
+                streamer_printf(streamer, "\e[39m");     /* Set to default colour */
             }
             irq_p_last = irq_p;
             irq_i++;
@@ -530,21 +525,21 @@ dw1000_cli_backtrace(struct _dw1000_dev_instance_t * inst, uint16_t verbose, cli
 
 #ifndef __KERNEL__
 static void
-dw1000_cli_too_few_args(void)
+dw1000_cli_too_few_args(struct streamer *streamer)
 {
-    console_printf("Too few args\n");
+    streamer_printf(streamer, "Too few args\n");
 }
 #endif
 
 static int
-dw1000_cli_cmd(int argc, char **argv)
+dw1000_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct streamer *streamer)
 {
 #ifndef __KERNEL__
     struct _dw1000_dev_instance_t * inst = 0;
     uint16_t inst_n;
 
     if (argc < 2) {
-        dw1000_cli_too_few_args();
+        dw1000_cli_too_few_args(streamer);
         return 0;
     }
 
@@ -555,24 +550,26 @@ dw1000_cli_cmd(int argc, char **argv)
             inst_n = strtol(argv[2], NULL, 0);
         }
         inst = hal_dw1000_inst(inst_n);
-        dw1000_cli_dump_registers(inst, console_printf);
+        console_no_ticks();
+        dw1000_cli_dump_registers(inst, streamer);
+        console_yes_ticks();
 #if MYNEWT_VAL(DW1000_CLI_EVENT_COUNTERS)
     } else if (!strcmp(argv[1], "ev")) {
         if (argc<4) {
-            dw1000_cli_too_few_args();
+            dw1000_cli_too_few_args(streamer);
             return 0;
         }
         inst_n = strtol(argv[2], NULL, 0);
         inst = hal_dw1000_inst(inst_n);
         if (!strcmp(argv[3], "on")) {
             dw1000_phy_event_cnt_ctrl(inst, true, true);
-            console_printf("ev on\n");
+            streamer_printf(streamer, "ev on\n");
         } else if (!strcmp(argv[3], "reset")) {
             dw1000_phy_event_cnt_ctrl(inst, false, false);
-            console_printf("ev reset+off\n");
+            streamer_printf(streamer, "ev reset+off\n");
         } else if (!strcmp(argv[3], "dump")) {
             console_no_ticks();
-            dw1000_cli_dump_event_counters(inst, console_printf);
+            dw1000_cli_dump_event_counters(inst, streamer);
             console_yes_ticks();
         }
 #endif
@@ -598,8 +595,8 @@ dw1000_cli_cmd(int argc, char **argv)
         dw1000_write_reg(inst, SYS_MASK_ID, 0, 0, sizeof(uint32_t));
         dw1000_write_reg(inst, SYS_CTRL_ID, SYS_CTRL_OFFSET, SYS_CTRL_TRXOFF, sizeof(uint8_t));
         dw1000_configcwmode(inst, inst->uwb_dev.config.channel);
-        console_printf("Device[%d] now in CW mode on ch %d. Reset to continue\n",
-                       inst_n, inst->uwb_dev.config.channel);
+        streamer_printf(streamer, "Device[%d] now in CW mode on ch %d. Reset to continue\n",
+                        inst_n, inst->uwb_dev.config.channel);
     } else if (!strcmp(argv[1], "wr")) {
         if (argc < 7) {
             return 0;
@@ -619,7 +616,7 @@ dw1000_cli_cmd(int argc, char **argv)
         uint16_t sub  = strtol(argv[4], NULL, 0);
         int length = strtol(argv[5], NULL, 0);
         uint64_t reg = dw1000_read_reg(hal_dw1000_inst(inst_n), addr, sub, length);
-        console_printf("0x%06"PRIX32",0x%04X: 0x%"PRIX64"\n", addr, sub, reg);
+        streamer_printf(streamer, "0x%06"PRIX32",0x%04X: 0x%"PRIX64"\n", addr, sub, reg);
 #if MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN)
     } else if (!strcmp(argv[1], "ibt")){
         uint8_t d=0;
@@ -635,7 +632,7 @@ dw1000_cli_cmd(int argc, char **argv)
         }
         inst = hal_dw1000_inst(inst_n);
         console_no_ticks();
-        dw1000_cli_interrupt_backtrace(inst, d, console_printf);
+        dw1000_cli_interrupt_backtrace(inst, d, streamer);
         console_yes_ticks();
     } else if (!strcmp(argv[1], "status2txt")){
         uint64_t d = strtoll(argv[2], NULL, 0);
@@ -649,9 +646,9 @@ dw1000_cli_cmd(int argc, char **argv)
             d = strtol(argv[2], NULL, 16);
             d2 = strtol(argv[3], NULL, 16);
         }
-        console_printf("%02X %02X: %s\n", (uint8_t)d, (uint8_t)d2, fctrl_to_string((d2<<8)|d));
-        console_printf("----\n ledgend: \n");
-        fctrl_ledgend(console_printf);
+        streamer_printf(streamer, "%02X %02X: %s\n", (uint8_t)d, (uint8_t)d2, fctrl_to_string((d2<<8)|d));
+        streamer_printf(streamer, "----\n ledgend: \n");
+        fctrl_ledgend(streamer);
 #endif
 #if MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN)
     } else if (!strcmp(argv[1], "spibt")){
@@ -668,7 +665,7 @@ dw1000_cli_cmd(int argc, char **argv)
         }
         inst = hal_dw1000_inst(inst_n);
         console_no_ticks();
-        dw1000_cli_spi_backtrace(inst, d, console_printf);
+        dw1000_cli_spi_backtrace(inst, d, streamer);
         console_yes_ticks();
 #endif
 #if MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN) && MYNEWT_VAL(DW1000_SPI_BACKTRACE_LEN)
@@ -686,11 +683,11 @@ dw1000_cli_cmd(int argc, char **argv)
         }
         inst = hal_dw1000_inst(inst_n);
         console_no_ticks();
-        dw1000_cli_backtrace(inst, d, console_printf);
+        dw1000_cli_backtrace(inst, d, streamer);
         console_yes_ticks();
 #endif
     } else {
-        console_printf("Unknown cmd\n");
+        streamer_printf(streamer, "Unknown cmd\n");
     }
 #endif  /* ifndef __KERNEL__ */
 
