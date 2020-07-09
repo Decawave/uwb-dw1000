@@ -464,9 +464,11 @@ mtx_error:
  * to those data bytes.
  *
  * @param inst              Pointer to _dw1000_dev_instance_t.
- * @param txFrameLength     This is the total frame length, including the two byte CRC.
- * Note: This is the length of TX message (including the 2 byte CRC) - max is 1023 standard PHR mode allows up to 127 bytes
- * if > 127 is programmed, DWT_PHRMODE_EXT needs to be set in the phrMode configuration.
+ * @param txFrameLength     This is the length of TX message, excluding the two byte CRC when auto-FCS
+ *                          transmission is enabled.
+ *                          In standard PHR mode, maximum is 127 (125 with auto-FCS Transmission).
+ *                          With DWT_PHRMODE_EXT set in the phrMode configuration, maximum is 1023 (1021 with
+ *                          auto-FCS Transmission).
  *
  * @param txFrameBytes      Pointer to the user buffer containing the data to send.
  * @param txBufferOffset    This specifies an offset in the DW1000s TX Buffer where writing of data starts.
@@ -511,9 +513,11 @@ mtx_error:
  * API to configure the TX frame control register before the transmission of a frame.
  *
  * @param inst              pointer to _dw1000_dev_instance_t.
- * @param txFrameLength     This is the length of TX message (excluding the 2 byte CRC) - max is 1023
- * NOTE: standard PHR mode allows up to 127 bytes.
- * if > 127 is programmed, DWT_PHRMODE_EXT needs to be set in the phrMode configuration.
+ * @param txFrameLength     This is the length of TX message, excluding the two byte CRC when auto-FCS
+ *                          transmission is enabled.
+ *                          In standard PHR mode, maximum is 127 (125 with auto-FCS Transmission).
+ *                          With DWT_PHRMODE_EXT set in the phrMode configuration, maximum is 1023 (1021 with
+ *                          auto-FCS Transmission).
  *
  * @param txBufferOffset    The offset in the tx buffer to start writing the data.
  * @param ext               Optional pointer to struct uwb_fctrl_ext with additional parameters
