@@ -654,10 +654,10 @@ uwb_dw1000_write_tx(struct uwb_dev* dev, uint8_t *tx_frame_bytes,
 
 inline static void
 uwb_dw1000_write_tx_fctrl(struct uwb_dev* dev, uint16_t tx_frame_length,
-                          uint16_t tx_buffer_offset)
+                          uint16_t tx_buffer_offset, struct uwb_fctrl_ext *ext)
 {
     dw1000_write_tx_fctrl((dw1000_dev_instance_t *)dev, tx_frame_length,
-                          tx_buffer_offset);
+                          tx_buffer_offset, ext);
 }
 
 inline static int
@@ -906,7 +906,7 @@ static const struct uwb_driver_funcs dw1000_uwb_funcs = {
     .uf_start_rx = uwb_dw1000_start_rx,
     .uf_stop_rx = uwb_dw1000_stop_rx,
     .uf_write_tx = uwb_dw1000_write_tx,
-    .uf_write_tx_fctrl = uwb_dw1000_write_tx_fctrl,
+    .uf_write_tx_fctrl_ext = uwb_dw1000_write_tx_fctrl,
     .uf_hal_noblock_wait = uwb_dw1000_hal_noblock_wait,
     .uf_tx_wait = uwb_dw1000_tx_wait,
     .uf_set_wait4resp = uwb_dw1000_set_wait4resp,

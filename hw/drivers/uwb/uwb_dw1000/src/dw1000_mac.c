@@ -516,12 +516,16 @@ mtx_error:
  * if > 127 is programmed, DWT_PHRMODE_EXT needs to be set in the phrMode configuration.
  *
  * @param txBufferOffset    The offset in the tx buffer to start writing the data.
+ * @param ext               Optional pointer to struct uwb_fctrl_ext with additional parameters
  * @return void
  */
-inline void dw1000_write_tx_fctrl(struct _dw1000_dev_instance_t * inst, uint16_t txFrameLength, uint16_t txBufferOffset)
+void dw1000_write_tx_fctrl(struct _dw1000_dev_instance_t * inst, uint16_t txFrameLength,
+                           uint16_t txBufferOffset, struct uwb_fctrl_ext *ext)
 {
     dpl_error_t err;
     uint32_t tx_fctrl_reg;
+    struct uwb_dev_config * config = &inst->uwb_dev.config;
+
 #ifdef DW1000_API_ERROR_CHECK
     assert((inst->longFrames && ((txFrameLength + 2) <= 1023)) || ((txFrameLength +2) <= 127));
 #endif
@@ -531,8 +535,33 @@ inline void dw1000_write_tx_fctrl(struct _dw1000_dev_instance_t * inst, uint16_t
         goto mtx_error;
     }
 
-    // Write the frame length to the TX frame control register
-    tx_fctrl_reg = inst->tx_fctrl | (txFrameLength + 2)  | (((uint32_t)txBufferOffset) << TX_FCTRL_TXBOFFS_SHFT);
+    /* Start from current base tx_fctrl or override with ext params? */
+    if (ext) {
+        tx_fctrl_reg = (((uint32_t)(ext->preambleLength | config->prf)) << TX_FCTRL_TXPRF_SHFT) |
+            (((uint32_t)ext->dataRate) << TX_FCTRL_TXBR_SHFT) |
+            (((uint32_t)ext->ranging_en_bit) << TX_FCTRL_TR_SHFT);
+#if 0
+        if(ext->dataRate != config->dataRate) {
+            if (ext->dataRate == DWT_BR_110K) {
+                dw1000_write_reg(inst, DRX_CONF_ID, DRX_TUNE1b_OFFSET, DRX_TUNE1b_110K, sizeof(uint16_t));
+            } else {
+                if(config->tx.preambleLength == DWT_PLEN_64){
+                    dw1000_write_reg(inst, DRX_CONF_ID, DRX_TUNE1b_OFFSET, DRX_TUNE1b_6M8_PRE64, sizeof(uint16_t));
+                    dw1000_write_reg(inst, DRX_CONF_ID, DRX_TUNE4H_OFFSET, DRX_TUNE4H_PRE64, sizeof(uint16_t));
+                } else {
+                    dw1000_write_reg(inst, DRX_CONF_ID, DRX_TUNE1b_OFFSET, DRX_TUNE1b_850K_6M8, sizeof(uint16_t));
+                    dw1000_write_reg(inst, DRX_CONF_ID, DRX_TUNE4H_OFFSET, DRX_TUNE4H_PRE128PLUS, sizeof(uint16_t));
+                }
+            }
+        }
+#endif
+    } else {
+        tx_fctrl_reg = inst->tx_fctrl;
+    }
+
+    /* Add frame length (+2 for CRC) and start-offset */
+    tx_fctrl_reg |= ((txFrameLength + 2) & TX_FCTRL_FLE_MASK)  |
+        (((uint32_t)txBufferOffset) << TX_FCTRL_TXBOFFS_SHFT);
     dw1000_write_reg(inst, TX_FCTRL_ID, 0, tx_fctrl_reg, sizeof(uint32_t));
 
     err = dpl_mutex_release(&inst->mutex);
