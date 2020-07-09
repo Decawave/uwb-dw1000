@@ -21,8 +21,9 @@ repo.name: decawave-uwb-dw1000
 repo.versions:
     "0.0.0": "master"
     "0.9.0": "uwb_dw1000_0_9_0_tag"
+    "0.9.1": "uwb_dw1000_0_9_1_tag"
 
-    "0-latest": "0.9.0"
+    "0-latest": "0.9.1"
     "0-dev": "0.0.0"       # master
 
 repo.newt_compatibility:
@@ -33,6 +34,8 @@ repo.newt_compatibility:
         0.0.0: good
     0.9.0:
         1.7.0: good
+    0.9.1:
+        1.7.0: good
 
 repo.deps:
     apache-mynewt-core:
@@ -42,3 +45,4 @@ repo.deps:
         vers:
             master: 1.7.0
             uwb_dw1000_0_9_0_tag: 1.7.0
+            uwb_dw1000_0_9_1_tag: 1.7.0
