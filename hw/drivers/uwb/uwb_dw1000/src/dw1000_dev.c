@@ -483,6 +483,7 @@ dw1000_dev_wakeup(dw1000_dev_instance_t * inst)
     if(dpl_sem_get_count(&inst->tx_sem) == 0) {
         dpl_sem_release(&inst->tx_sem);
     }
+    dw1000_write_reg(inst, SYS_MASK_ID, 0, inst->irq_mask, sizeof(uint32_t)); // Restore mask to what it was
 mtx_error:
     return inst->uwb_dev.status;
 }

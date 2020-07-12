@@ -607,6 +607,14 @@ dw1000_start_tx(struct _dw1000_dev_instance_t * inst)
     if (control.delay_start_enabled)
         sys_ctrl_reg |= SYS_CTRL_TXDLYS;
 
+    if (inst->control.sleep_after_tx) {
+        /* Clear the TX related irqs from the mask to prevent waking the chip by
+         * reading the irq status. */
+        dw1000_write_reg(inst, SYS_MASK_ID, 0,
+                         inst->irq_mask&(~(SYS_MASK_MTXFRB|SYS_MASK_MTXFRS)),
+                         sizeof(uint32_t));
+    }
+
     dw1000_write_reg(inst, SYS_CTRL_ID, SYS_CTRL_OFFSET, (uint8_t) sys_ctrl_reg, sizeof(uint8_t));
     if (control.delay_start_enabled){
         sys_status_reg = dw1000_read_reg(inst, SYS_STATUS_ID, 3, sizeof(uint16_t)); // Read at offset 3 to get the upper 2 bytes out of 5
@@ -628,9 +636,8 @@ dw1000_start_tx(struct _dw1000_dev_instance_t * inst)
         inst->uwb_dev.status.start_tx_error = 0;
     }
 
-    /* If dw1000 is instructed to sleep after tx, release
-     * the sem as there will not be a TXDONE irq */
-    if(inst->control.sleep_after_tx) {
+    /* If instructed to sleep after tx, release the tx_sem as there will not be a TXDONE irq */
+    if (inst->control.sleep_after_tx) {
         inst->uwb_dev.status.sleeping = 1;
         err = dpl_sem_release(&inst->tx_sem);
     }
@@ -770,19 +777,16 @@ mtx_error:
 struct uwb_dev_status
 dw1000_stop_rx(struct _dw1000_dev_instance_t * inst)
 {
-    uint32_t mask;
-
     dpl_error_t err = dpl_mutex_pend(&inst->mutex,  DPL_WAIT_FOREVER);
     if (err != DPL_OK) {
         inst->uwb_dev.status.mtx_error = 1;
         goto mtx_error;
     }
 
-    mask = dw1000_read_reg(inst, SYS_MASK_ID, 0 , sizeof(uint32_t)) ; // Read set interrupt mask
     dw1000_write_reg(inst, SYS_MASK_ID, 0, 0, sizeof(uint32_t)) ; // Clear interrupt mask - so we don't get any unwanted events
     dw1000_write_reg(inst, SYS_CTRL_ID, SYS_CTRL_OFFSET, (uint8_t) SYS_CTRL_TRXOFF, sizeof(uint8_t)); // return to idle state
     dw1000_write_reg(inst, SYS_STATUS_ID, 0, (SYS_STATUS_ALL_TX | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_GOOD), sizeof(uint32_t));
-    dw1000_write_reg(inst, SYS_MASK_ID, 0, mask, sizeof(uint32_t)); // Restore mask to what it was
+    dw1000_write_reg(inst, SYS_MASK_ID, 0, inst->irq_mask, sizeof(uint32_t)); // Restore mask to what it was
 
     err = dpl_mutex_release(&inst->mutex);
     assert(err == DPL_OK);
@@ -1586,10 +1590,9 @@ dw1000_interrupt_ev_cb(struct dpl_event *ev)
                  * mask out interrupt flags to avoid spurious interrupts when clearing status bits */
                 if (inst->uwb_dev.config.rxauto_enable) {
                     if (dw1000_ic_and_host_ptrs_equal(inst)) {
-                        uint8_t mask = dw1000_read_reg(inst, SYS_MASK_ID, 1 , sizeof(uint8_t));
                         dw1000_write_reg(inst, SYS_MASK_ID, 1, 0, sizeof(uint8_t));
                         dw1000_write_reg(inst, SYS_STATUS_ID, 1, (inst->sys_status&(SYS_STATUS_LDEDONE | SYS_STATUS_RXDFR | SYS_STATUS_RXFCG | SYS_STATUS_RXFCE | SYS_STATUS_RXDFR))>>8, sizeof(uint8_t));
-                        dw1000_write_reg(inst, SYS_MASK_ID, 1, mask, sizeof(uint8_t));
+                        dw1000_write_reg(inst, SYS_MASK_ID, 1, (inst->irq_mask>>8), sizeof(uint8_t));
                     } else {
                         dw1000_write_reg(inst, SYS_STATUS_ID, 1, (inst->sys_status&(SYS_STATUS_LDEDONE | SYS_STATUS_RXDFR | SYS_STATUS_RXFCG | SYS_STATUS_RXFCE | SYS_STATUS_RXDFR))>>8, sizeof(uint8_t));
                     }

@@ -175,6 +175,7 @@ typedef struct _dw1000_dev_instance_t{
     uint32_t tx_fctrl;             //!< Transmit frame control register parameter
     uint32_t sys_status;           //!< SYS_STATUS_ID for current event
     uint8_t  sys_status_hi;        //!< SYS_STATUS_ID+4 for current event
+    uint32_t irq_mask;             //!< Interrupt mask used
 
     struct hal_spi_settings spi_settings;  //!< Structure of SPI settings in hal layer
 #if MYNEWT_VAL(CIR_ENABLED)

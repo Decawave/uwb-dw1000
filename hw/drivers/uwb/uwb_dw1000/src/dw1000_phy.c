@@ -373,7 +373,6 @@ void dw1000_phy_forcetrxoff(struct _dw1000_dev_instance_t * inst)
 {
     dpl_error_t err;
     struct uwb_mac_interface * cbs = NULL;
-    uint32_t mask = dw1000_read_reg(inst, SYS_MASK_ID, 0 , sizeof(uint32_t)) ; // Read set interrupt mask
 
     // Need to beware of interrupts occurring in the middle of following read modify write cycle
     // We can disable the radio, but before the status is cleared an interrupt can be set (e.g. the
@@ -394,7 +393,7 @@ void dw1000_phy_forcetrxoff(struct _dw1000_dev_instance_t * inst)
     if (inst->uwb_dev.config.dblbuffon_enabled)
         dw1000_sync_rxbufptrs(inst);
 
-    dw1000_write_reg(inst, SYS_MASK_ID, 0, mask, sizeof(uint32_t)); // Restore mask to what it was
+    dw1000_write_reg(inst, SYS_MASK_ID, 0, inst->irq_mask, sizeof(uint32_t)); // Restore mask
 
     if(!(SLIST_EMPTY(&inst->uwb_dev.interface_cbs))){
         SLIST_FOREACH(cbs, &inst->uwb_dev.interface_cbs, next){
@@ -439,21 +438,18 @@ void dw1000_phy_forcetrxoff(struct _dw1000_dev_instance_t * inst)
 void dw1000_phy_interrupt_mask(struct _dw1000_dev_instance_t * inst, uint32_t bitmask, uint8_t enable)
 {
     // Critical region, atomic lock with mutex
-    uint32_t mask;
     dpl_error_t err = dpl_mutex_pend(&inst->mutex, DPL_WAIT_FOREVER);
     if (err != DPL_OK) {
         inst->uwb_dev.status.mtx_error = 1;
         goto mtx_error;
     }
 
-    mask = dw1000_read_reg(inst, SYS_MASK_ID, 0, sizeof(uint32_t)) ; // Read register
-
     if(enable)
-        mask |= bitmask ;
+        inst->irq_mask |= bitmask ;
     else
-        mask &= ~bitmask ; // Clear the bit
+        inst->irq_mask &= ~bitmask ; // Clear the bit
 
-    dw1000_write_reg(inst, SYS_MASK_ID, 0, mask, sizeof(uint32_t));
+    dw1000_write_reg(inst, SYS_MASK_ID, 0, inst->irq_mask, sizeof(uint32_t));
 
     // Critical region, unlock mutex
     err = dpl_mutex_release(&inst->mutex);
