@@ -735,21 +735,21 @@ uwb_dw1000_read_txtime_lo32(struct uwb_dev* dev)
 }
 
 inline static uint16_t
-uwb_dw1000_phy_frame_duration(struct uwb_dev* dev, uint16_t nlen)
+uwb_dw1000_phy_frame_duration(struct uwb_dev* dev, uint16_t nlen, struct uwb_phy_attributes * attrib)
 {
-    return dw1000_phy_frame_duration(&dev->attrib, nlen);
+    return dw1000_phy_frame_duration((attrib) ? attrib : &dev->attrib, nlen);
 }
 
 inline static uint16_t
-uwb_dw1000_phy_SHR_duration(struct uwb_dev* dev)
+uwb_dw1000_phy_SHR_duration(struct uwb_dev* dev, struct uwb_phy_attributes * attrib)
 {
-    return dw1000_phy_SHR_duration(&dev->attrib);
+    return dw1000_phy_SHR_duration((attrib) ? attrib : &dev->attrib);
 }
 
 inline static uint16_t
-uwb_dw1000_phy_data_duration(struct uwb_dev* dev, uint16_t nlen)
+uwb_dw1000_phy_data_duration(struct uwb_dev* dev, uint16_t nlen, struct uwb_phy_attributes * attrib)
 {
-    return dw1000_phy_data_duration(&dev->attrib, nlen);
+    return dw1000_phy_data_duration((attrib) ? attrib : &dev->attrib, nlen);
 }
 
 inline static void
