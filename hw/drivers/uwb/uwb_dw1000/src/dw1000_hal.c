@@ -721,7 +721,7 @@ hal_dw1000_wakeup(struct _dw1000_dev_instance_t * inst)
         goto early_exit;
     }
 
-    OS_ENTER_CRITICAL(sr);
+    DPL_ENTER_CRITICAL(sr);
 
     hal_spi_disable(inst->spi_num);
     hal_gpio_write(inst->ss_pin, 0);
@@ -736,7 +736,7 @@ hal_dw1000_wakeup(struct _dw1000_dev_instance_t * inst)
     // (check PLL bit in IRQ?)
     dpl_cputime_delay_usecs(5000);
 
-    OS_EXIT_CRITICAL(sr);
+    DPL_EXIT_CRITICAL(sr);
 
     rc = dpl_sem_release(inst->spi_sem);
     assert(rc == DPL_OK);
