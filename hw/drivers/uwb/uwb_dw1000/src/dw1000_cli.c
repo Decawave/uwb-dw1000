@@ -160,16 +160,17 @@ dw1000_cli_dump_registers(struct _dw1000_dev_instance_t * inst, struct streamer 
 }
 
 void
-dw1000_dump_address(struct _dw1000_dev_instance_t * inst, uint32_t addr, uint16_t length)
+dw1000_cli_dump_address(struct _dw1000_dev_instance_t * inst, uint32_t addr, uint16_t length, struct streamer *streamer)
 {
-    int i, step = 16;
-    uint8_t b[step];
-    console_printf("Dump starting at %06"PRIX32":\n", addr);
+#define DUMP_STEP (16)
+    int i, step = DUMP_STEP;
+    uint8_t b[DUMP_STEP];
+    streamer_printf(streamer, "Dump starting at %06"PRIX32":\n", addr);
     for (i=0;i<length;i+=step) {
         memset(b,0,sizeof(b));
         dw1000_read(inst, addr, i, b, step);
 
-        console_printf("%04X: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
+        streamer_printf(streamer, "%04X: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",
                i, b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
                b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]);
     }
@@ -196,7 +197,6 @@ dw1000_cli_dump_event_counters(struct _dw1000_dev_instance_t * inst, struct stre
     streamer_printf(streamer, "  TXFRS:  %6d  # tx frames sent\n", cnt.ev4s.count_txfrs);
     streamer_printf(streamer, "  HPWARN: %6d  # half period warn\n", cnt.ev5s.count_hpwarn);
     streamer_printf(streamer, "  TPW:    %6d  # tx pwr-up warn\n", cnt.ev5s_1000.count_tpwarn);
-    streamer_printf(streamer, "  RXPREJ: %6d  # rx prem rejects\n", cnt.ev6s.count_rxprej);
 }
 #endif
 
@@ -584,7 +584,7 @@ dw1000_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
             length = strtol(argv[4], NULL, 0);
         }
         inst = hal_dw1000_inst(inst_n);
-        dw1000_dump_address(inst, addr, length);
+        dw1000_cli_dump_address(inst, addr, length, streamer);
     } else if (!strcmp(argv[1], "cw")) {
         if (argc<3) {
             inst_n=0;

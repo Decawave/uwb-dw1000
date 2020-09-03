@@ -41,6 +41,8 @@ struct debug_cmd {
 
 static struct dentry *dir = 0;
 static struct seq_file *seq_file = 0;
+static uint32_t da_addr = 0x11;
+static uint32_t da_length = 128;
 
 static int
 debugfs_vprintf(struct streamer *streamer,
@@ -89,6 +91,10 @@ static int cmd_dump(struct seq_file *s, void *data)
     if (!strcmp(cmd->fn, "ev")) {
         dw1000_cli_dump_event_counters(inst, &streamer_debugfs);
     }
+    if (!strcmp(cmd->fn, "da")) {
+        if (da_addr > 0x3F) da_addr = 0x3F;
+        dw1000_cli_dump_address(inst, da_addr, da_length, &streamer_debugfs);
+    }
 #if MYNEWT_VAL(DW1000_SYS_STATUS_BACKTRACE_LEN)
     if (!strcmp(cmd->fn, "ibt")) {
         dw1000_cli_interrupt_backtrace(inst, 1, &streamer_debugfs);
@@ -116,11 +122,26 @@ static const struct file_operations clk_dump_fops = {
 	.release	= single_release,
 };
 
+static int debugfs_u32_set(void *data, u64 val)
+{
+	*(u32 *)data = val;
+	return 0;
+}
+
+static int debugfs_u32_get(void *data, u64 *val)
+{
+	*val = *(u32 *)data;
+	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(fops_u32, debugfs_u32_get, debugfs_u32_set, "%llu\n");
+
 static char* cmd_names[] = {
     "dump",
     "ev",
     "ibt",
     "bt",
+    "da",
     0
 };
 
@@ -159,6 +180,12 @@ void dw1000_debugfs_init(void)
                 pr_err("too few elements in debug_cmd vector\n");
                 return;
             }
+        }
+        if (!debugfs_create_file("da_addr", 0644, dir, &da_addr, &fops_u32)) {
+            pr_err("failed to add da_addr\n");
+        }
+        if (!debugfs_create_file("da_length", 0644, dir, &da_length, &fops_u32)) {
+            pr_err("failed to add da_length\n");
         }
     }
 }
