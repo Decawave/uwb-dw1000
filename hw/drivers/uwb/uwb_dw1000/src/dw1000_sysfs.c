@@ -22,7 +22,6 @@
 #ifdef __KERNEL__
 #include <dpl/dpl.h>
 #include <linux/fs.h>
-#include <linux/device.h>
 #include <linux/kernel.h>
 #include "uwbcore.h"
 #include <dw1000/dw1000_hal.h>
@@ -37,22 +36,46 @@ struct dw1000cli_sysfs_data {
     struct mutex local_lock;
     struct _dw1000_dev_instance_t *inst;
 
-    struct dev_ext_attribute *dev_attr_cfg;
+    struct kobj_attribute *dev_attr_cfg;
     struct attribute** attrs;
     struct attribute_group attribute_group;
 };
 
 static struct dw1000cli_sysfs_data dw1000cli_sysfs_inst[MYNEWT_VAL(UWB_DEVICE_MAX)] = {0};
 
-static ssize_t cmd_show(struct device *dev,
-    struct device_attribute *attr, char *buf)
+static struct dw1000cli_sysfs_data* get_instance(struct kobject* kobj)
+{
+    struct kobject* ko = kobj;
+    /* Walk up in parent objects until they end with a number we can use
+     * to figure out our instance */
+    while (ko) {
+        char s = ko->name[strlen(ko->name)-1];
+        if (s >= '0' && s<= '9') {
+            u8 i = s-'0';
+            if (i<MYNEWT_VAL(UWB_DEVICE_MAX)) {
+                return &dw1000cli_sysfs_inst[i];
+            }
+        }
+        ko = ko->parent;
+    }
+    return 0;
+}
+
+static ssize_t cmd_show(struct kobject *kobj,
+    struct kobj_attribute *attr, char *buf)
 {
     int gpio_num;
     unsigned int copied;
     const char nodev_errmsg[] = "err, no device\n";
-    struct dev_ext_attribute *ext_dev = (struct dev_ext_attribute *)attr;
-    struct dw1000cli_sysfs_data *ed = (struct dw1000cli_sysfs_data *)ext_dev->var;
-    struct _dw1000_dev_instance_t *inst = ed->inst;
+    struct dw1000cli_sysfs_data *ed;
+    struct _dw1000_dev_instance_t *inst;
+
+    ed = get_instance(kobj);
+    if (!ed) {
+        slog("ERROR: Could not get instance, kobj->name = '%s'\n", kobj->name);
+        return -EINVAL;
+    }
+    inst = ed->inst;
 
     if (!inst->uwb_dev.status.initialized) {
         memcpy(buf, nodev_errmsg, strlen(nodev_errmsg));
@@ -88,15 +111,21 @@ static ssize_t cmd_show(struct device *dev,
     return copied;
 }
 
-static ssize_t cmd_store(struct device *dev,
-    struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t cmd_store(struct kobject *kobj,
+    struct kobj_attribute *attr, const char *buf, size_t count)
 {
     int gpio_num;
     int ret;
     u64 res;
-    struct dev_ext_attribute *ext_dev = (struct dev_ext_attribute *)attr;
-    struct dw1000cli_sysfs_data *ed = (struct dw1000cli_sysfs_data *)ext_dev->var;
-    struct _dw1000_dev_instance_t *inst = ed->inst;
+    struct dw1000cli_sysfs_data *ed;
+    struct _dw1000_dev_instance_t *inst;
+
+    ed = get_instance(kobj);
+    if (!ed) {
+        slog("ERROR: Could not get instance, kobj->name = '%s'\n", kobj->name);
+        return -EINVAL;
+    }
+    inst = ed->inst;
 
     if (!inst->uwb_dev.status.initialized) {
         return count;
@@ -162,17 +191,16 @@ static ssize_t cmd_store(struct device *dev,
 }
 
 
-#define DEV_ATTR_ROW(__X, __Y)                                          \
-    (struct dev_ext_attribute){                                         \
-        .attr = {.attr = {.name = __X,                                  \
-                          .mode = VERIFY_OCTAL_PERMISSIONS(S_IRUGO)}, .show = cmd_show},  \
-            .var=__Y }
-#define DEV_ATTR_ROW_W(__X, __Y)                                          \
-    (struct dev_ext_attribute){                                         \
-        .attr = {.attr = {.name = __X,                                  \
-                          .mode = VERIFY_OCTAL_PERMISSIONS(S_IRUGO|S_IWUSR|S_IWGRP)}, \
-                 .show = cmd_show, .store = cmd_store},                 \
-            .var=__Y }
+#define DEV_ATTR_ROW(__X)                                               \
+    (struct kobj_attribute){                                            \
+        .attr = {.name = __X,                                           \
+                 .mode = VERIFY_OCTAL_PERMISSIONS(S_IRUGO)}, .show = cmd_show}
+
+#define DEV_ATTR_ROW_W(__X)                                             \
+    (struct kobj_attribute){                                            \
+        .attr = {.name = __X,                                           \
+                 .mode = VERIFY_OCTAL_PERMISSIONS(S_IRUGO|S_IWUSR|S_IWGRP)}, \
+            .show = cmd_show, .store = cmd_store}
 
 /* Read only interface(s) */
 static const char* ro_attr[] = {
@@ -216,7 +244,7 @@ int dw1000_sysfs_init(struct _dw1000_dev_instance_t *inst)
         return -ENOMEM;
     }
 
-    ed->dev_attr_cfg = kzalloc((ARRAY_SIZE(ro_attr) + ARRAY_SIZE(rw_attr))*sizeof(struct dev_ext_attribute), GFP_KERNEL);
+    ed->dev_attr_cfg = kzalloc((ARRAY_SIZE(ro_attr) + ARRAY_SIZE(rw_attr))*sizeof(struct kobj_attribute), GFP_KERNEL);
     if (!ed->dev_attr_cfg) {
         slog("Failed to create dev_attr_cfg\n");
         goto err_dev_attr_cfg;
@@ -230,13 +258,13 @@ int dw1000_sysfs_init(struct _dw1000_dev_instance_t *inst)
 
     k=0;
     for (i=0;i<ARRAY_SIZE(ro_attr);i++) {
-        ed->dev_attr_cfg[k] = DEV_ATTR_ROW(ro_attr[i], ed);
-        ed->attrs[k] = &ed->dev_attr_cfg[k].attr.attr;
+        ed->dev_attr_cfg[k] = DEV_ATTR_ROW(ro_attr[i]);
+        ed->attrs[k] = &ed->dev_attr_cfg[k].attr;
         k++;
     }
     for (i=0;i<ARRAY_SIZE(rw_attr);i++) {
-        ed->dev_attr_cfg[k] = DEV_ATTR_ROW_W(rw_attr[i], ed);
-        ed->attrs[k] = &ed->dev_attr_cfg[k].attr.attr;
+        ed->dev_attr_cfg[k] = DEV_ATTR_ROW_W(rw_attr[i]);
+        ed->attrs[k] = &ed->dev_attr_cfg[k].attr;
         k++;
     }
 
